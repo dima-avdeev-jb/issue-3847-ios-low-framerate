@@ -1,41 +1,68 @@
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.ExperimentalResourceApi
-import org.jetbrains.compose.resources.painterResource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.coroutineScope
+import kotlin.time.DurationUnit
+import kotlin.time.TimeSource
 
-@OptIn(ExperimentalResourceApi::class)
 @Composable
 fun App() {
-    MaterialTheme {
-        var greetingText by remember { mutableStateOf("Hello, World!") }
-        var showImage by remember { mutableStateOf(false) }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = {
-                greetingText = "Hello, ${getPlatformName()}"
-                showImage = !showImage
-            }) {
-                Text(greetingText)
-            }
-            AnimatedVisibility(showImage) {
-                Image(
-                    painterResource("compose-multiplatform.xml"),
-                    contentDescription = "Compose Multiplatform icon"
-                )
+    buggy()
+//    EatFrames()
+}
+
+@Composable
+fun buggy() {
+    var pos by remember { mutableStateOf(0f) }
+    Canvas(modifier = Modifier.fillMaxSize().background(Color.DarkGray).pointerInput(true) {
+        coroutineScope {
+            awaitEachGesture {
+                do {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val panChange = event.calculatePan()
+                        if (panChange != Offset.Zero) {
+                            pos -= panChange.x
+                        }
+                        val canceled = event.changes.any { it.isConsumed }
+                    } while (!canceled)
+                } while (false)
             }
         }
+    }) {
+        drawRect(color = Color.Gray, size = Size(size.width - pos, size.height))
     }
 }
 
-expect fun getPlatformName(): String
+@Composable
+fun EatFrames() {
+    var count by mutableStateOf(0)
+    var mark by mutableStateOf(TimeSource.Monotonic.markNow())
+    var rate by mutableStateOf(0)
+    val textMeasurer = rememberTextMeasurer()
+    val precision = 120
+    Canvas(Modifier.width(32.dp).height(24.dp).background(Color.Green)) {
+        if (count == precision) {
+            rate = (1000 * precision / mark.elapsedNow().toLong(DurationUnit.MILLISECONDS)).toInt()
+            count = 0
+            mark = TimeSource.Monotonic.markNow()
+        } else
+            count++
+        drawText(textMeasurer = textMeasurer, text = "$rate")
+    }
+}
